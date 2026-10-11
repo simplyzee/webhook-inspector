@@ -1,0 +1,20 @@
+{
+  "name": "@simplyzee/webhook-inspector",
+  "version": "0.1.0",
+  "description": "Forward webhooks captured by Webhook Inspector to your localhost.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "webhook-inspector": "bin.mjs"
+  },
+  "files": ["bin.mjs", "README.md"],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simplyzee/webhook-inspector.git",
+    "directory": "cli"
+  },
+  "keywords": ["webhook", "requestbin", "localhost", "tunnel", "stripe", "github"]
+}

@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
   const { success } = await createLimiter().limit(ip);
   if (!success) return NextResponse.json({ error: "Too many endpoints created. Try again later." }, { status: 429 });
 
-  const ep = await getStore().createEndpoint(newId());
-  return NextResponse.json(ep, { status: 201 });
+  // 24 chars from a 32-char alphabet = 120 bits. Only returned here, once.
+  const ep = await getStore().createEndpoint(newId(), newId(24));
+  return NextResponse.json(ep, { status: 201, headers: { "cache-control": "no-store" } });
 }

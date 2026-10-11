@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { saveSecret } from "@/lib/secret-storage";
 
 export function CreateButton() {
   const router = useRouter();
@@ -15,7 +16,8 @@ export function CreateButton() {
       const res = await fetch("/api/endpoints", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Couldn't create endpoint");
-      router.push(`/i/${data.id}`);
+      saveSecret(data.id, data.secret);
+      router.push(`/i/${data.id}#k=${data.secret}`);
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);

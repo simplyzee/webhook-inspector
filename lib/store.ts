@@ -9,7 +9,7 @@ import type { CapturedRequest, Endpoint, ResponseConfig } from "./types";
  * in-memory store for local development.
  */
 export interface Store {
-  createEndpoint(id: string): Promise<Endpoint>;
+  createEndpoint(id: string, secret: string): Promise<Endpoint>;
   getEndpoint(id: string): Promise<Endpoint | null>;
   setResponse(id: string, response: ResponseConfig | null): Promise<void>;
   addRequest(id: string, req: CapturedRequest): Promise<void>;
@@ -30,9 +30,9 @@ const reqKey = (id: string) => `wi:req:${id}`;
 class RedisStore implements Store {
   constructor(private redis: Redis) {}
 
-  async createEndpoint(id: string): Promise<Endpoint> {
+  async createEndpoint(id: string, secret: string): Promise<Endpoint> {
     const now = Date.now();
-    const ep: Endpoint = { id, createdAt: now, expiresAt: now + ENDPOINT_TTL_SECONDS * 1000, response: null };
+    const ep: Endpoint = { id, secret, createdAt: now, expiresAt: now + ENDPOINT_TTL_SECONDS * 1000, response: null };
     await this.redis.set(epKey(id), ep, { ex: ENDPOINT_TTL_SECONDS });
     return ep;
   }
@@ -88,9 +88,9 @@ class MemoryStore implements Store {
     return e;
   }
 
-  async createEndpoint(id: string): Promise<Endpoint> {
+  async createEndpoint(id: string, secret: string): Promise<Endpoint> {
     const now = Date.now();
-    const ep: Endpoint = { id, createdAt: now, expiresAt: now + ENDPOINT_TTL_SECONDS * 1000, response: null };
+    const ep: Endpoint = { id, secret, createdAt: now, expiresAt: now + ENDPOINT_TTL_SECONDS * 1000, response: null };
     this.map.set(id, { ep, reqs: [] });
     return ep;
   }

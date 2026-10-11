@@ -5,8 +5,15 @@ Capture, inspect and replay webhooks, and forward them to your localhost with on
 **Live:** https://webhook-inspector.simplyzee.dev
 
 ```bash
-npx @simplyzee/webhook-inspector listen <endpoint> --to http://localhost:3000
+npx @simplyzee/webhook-inspector listen '<private-link>' --to http://localhost:3000
 ```
+
+Each endpoint has two URLs:
+
+| | Example | Share it? |
+| --- | --- | --- |
+| **Capture URL** | `…/h/<id>` | Yes. It can only receive requests. |
+| **Private link** | `…/i/<id>#k=<key>` | No. The key lets anyone view, replay, reconfigure or burn the endpoint. |
 
 ## Features
 
@@ -27,14 +34,16 @@ Stripe / GitHub ──► /h/<id>/any/path ──► Upstash Redis (capped list,
                     CLI (your machine) ◄─ poll┘──► http://localhost:3000
 ```
 
-| Route | Purpose |
-| --- | --- |
-| `ANY /h/:id/*` | Capture endpoint |
-| `POST /api/endpoints` | Create an endpoint |
-| `GET /api/endpoints/:id?since=<ms>` | Endpoint and captured requests |
-| `PUT /api/endpoints/:id` | Set custom response (`null` resets) |
-| `DELETE /api/endpoints/:id` | Burn endpoint |
-| `POST /api/endpoints/:id/replay` | Replay to a public URL |
+| Route | Purpose | Auth |
+| --- | --- | --- |
+| `ANY /h/:id/*` | Capture endpoint | none |
+| `POST /api/endpoints` | Create an endpoint; returns `{ id, secret }` once | none (rate limited) |
+| `GET /api/endpoints/:id?since=<ms>` | Endpoint and captured requests | key |
+| `PUT /api/endpoints/:id` | Set custom response (`null` resets) | key |
+| `DELETE /api/endpoints/:id` | Burn endpoint | key |
+| `POST /api/endpoints/:id/replay` | Replay to a public URL | key |
+
+Send the key as `Authorization: Bearer <key>`.
 
 ## Run locally
 
@@ -57,27 +66,29 @@ Without Redis credentials it uses an in-memory store, which is fine for developm
 # create an endpoint
 npx @simplyzee/webhook-inspector new
 
-# forward to localhost (accepts an id or a full /h/ or /i/ URL)
-npx @simplyzee/webhook-inspector listen abc123def456 --to http://localhost:3000
+# forward to localhost using the private link (quote it because of the #)
+npx @simplyzee/webhook-inspector listen 'https://webhook-inspector.simplyzee.dev/i/<id>#k=<key>' --to http://localhost:3000
 
-# self-hosted instance
-npx @simplyzee/webhook-inspector listen <id> --server https://hooks.example.com --to http://localhost:3000
+# or pass the key separately
+npx @simplyzee/webhook-inspector listen <id> --secret <key> --to http://localhost:3000
 ```
 
-Options: `--interval <ms>`, `--replay-existing`. Set `WEBHOOK_INSPECTOR_SERVER` to change the default server.
+Options: `--secret <key>`, `--server <url>`, `--interval <ms>`, `--replay-existing`. Environment variables: `WEBHOOK_INSPECTOR_SECRET`, `WEBHOOK_INSPECTOR_SERVER`.
 
 Publish it from `cli/` with `npm publish --access public`.
 
 ## Security notes
 
-- Endpoint ids are random 60-bit strings. **Anyone with the id can view captured requests**, so treat the URL like a secret and burn it when you're done.
+- Every endpoint has a 120-bit key, required to view, replay, reconfigure or burn it. The capture URL alone exposes nothing.
+- In the browser, the key lives in the URL fragment (`#k=…`), which browsers never send to servers, so it stays out of access logs and `Referer` headers. It's also remembered in `localStorage` so `/i/<id>` reopens on the same browser.
+- A wrong key returns the same 404 as an unknown endpoint, so ids can't be probed.
 - Server-side replay refuses private, loopback and link-local targets and doesn't follow redirects. Use the CLI for localhost.
 - Platform headers (`x-vercel-*`) are stripped before storage.
 - Bodies over 256KB are stored truncated. Vercel caps incoming bodies at 4.5MB.
 
 ## Roadmap
 
-- [ ] Separate view secret, so sharing the capture URL doesn't expose the inspector
+- [x] Separate view secret, so sharing the capture URL doesn't expose the inspector
 - [ ] Signature verifier for Stripe, GitHub and Slack (paste a secret, see why the HMAC fails)
 - [ ] SSE instead of polling
 - [ ] Request search and filtering

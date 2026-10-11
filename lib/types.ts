@@ -26,6 +26,8 @@ export interface ResponseConfig {
 
 export interface Endpoint {
   id: string;
+  /** Required to view or manage the endpoint. Never needed to send webhooks to it. */
+  secret: string;
   createdAt: number;
   expiresAt: number;
   response: ResponseConfig | null;

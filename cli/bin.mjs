@@ -17,13 +17,16 @@ function usage(code = 0) {
 ${c.bold("webhook-inspector")} - forward captured webhooks to localhost
 
 Usage:
-  webhook-inspector listen <endpoint> --to <url> [options]
+  webhook-inspector listen '<private-link>' --to <url> [options]
+  webhook-inspector listen <id> --secret <key> --to <url> [options]
   webhook-inspector new [--server <url>]
 
-<endpoint> is an endpoint id, or a full /h/<id> or /i/<id> URL.
+<private-link> is the inspector link with its key, e.g. https://…/i/<id>#k=<key>.
+Quote it so your shell doesn't treat # specially.
 
 Options:
   --to <url>        Local target, e.g. http://localhost:3000 (required for listen)
+  --secret <key>    Endpoint key, if not in the link (or WEBHOOK_INSPECTOR_SECRET)
   --server <url>    Inspector server (default: ${DEFAULT_SERVER})
   --interval <ms>   Poll interval (default: 1000)
   --replay-existing Also forward requests captured before the CLI started
@@ -47,18 +50,24 @@ function parseArgs(argv) {
   return out;
 }
 
-function resolveEndpoint(input, serverFlag) {
+function resolveEndpoint(input, serverFlag, secretFlag) {
   let server = (serverFlag || DEFAULT_SERVER).replace(/\/$/, "");
   let id = input;
+  let secret = secretFlag || process.env.WEBHOOK_INSPECTOR_SECRET || null;
   if (/^https?:\/\//.test(input)) {
     const u = new URL(input);
     const m = u.pathname.match(/^\/(?:h|i)\/([a-z0-9]+)/);
     if (!m) { console.error(c.red("Couldn't find an endpoint id in that URL")); process.exit(1); }
     id = m[1];
     if (!serverFlag) server = u.origin;
+    secret = new URLSearchParams(u.hash.slice(1)).get("k") || secret;
   }
   if (!/^[a-z0-9]{6,32}$/.test(id)) { console.error(c.red(`Invalid endpoint id: ${id}`)); process.exit(1); }
-  return { server, id };
+  if (!secret) {
+    console.error(c.red("Missing endpoint key. Pass the private inspector link (…/i/<id>#k=<key>) in quotes, or use --secret."));
+    process.exit(1);
+  }
+  return { server, id, secret };
 }
 
 function forwardHeaders(headers) {
@@ -92,14 +101,15 @@ async function forward(r, to) {
 
 async function listen(args) {
   if (!args._[1] || !args.to) usage(1);
-  const { server, id } = resolveEndpoint(args._[1], args.server);
+  const { server, id, secret } = resolveEndpoint(args._[1], args.server, args.secret);
   const interval = Math.max(250, Number(args.interval) || 1000);
   const api = `${server}/api/endpoints/${id}`;
+  const auth = { authorization: `Bearer ${secret}` };
 
   let since = 0;
-  const first = await fetch(api).catch((e) => ({ ok: false, status: 0, statusText: e.message }));
+  const first = await fetch(api, { headers: auth }).catch((e) => ({ ok: false, status: 0, statusText: e.message }));
   if (!first.ok) {
-    console.error(c.red(first.status === 404 ? "Endpoint not found or expired." : `Couldn't reach ${server} (${first.status || first.statusText})`));
+    console.error(c.red(first.status === 404 ? "Endpoint not found, expired, or the key is wrong." : `Couldn't reach ${server} (${first.status || first.statusText})`));
     process.exit(1);
   }
   const initial = await first.json();
@@ -110,14 +120,14 @@ async function listen(args) {
   since = Math.max(0, ...initial.requests.map((r) => r.receivedAt));
 
   console.log(`\n  ${c.green("●")} Forwarding ${c.bold(`${server}/h/${id}`)} → ${c.bold(args.to)}`);
-  console.log(c.dim(`    Inspect at ${server}/i/${id}  ·  Ctrl+C to stop\n`));
+  console.log(c.dim(`    Inspect at ${server}/i/${id}#k=${secret}  ·  Ctrl+C to stop\n`));
 
   const seen = new Set(initial.requests.map((r) => r.id));
   let failures = 0;
   for (;;) {
     await new Promise((r) => setTimeout(r, interval));
     try {
-      const res = await fetch(`${api}?since=${since}`, { signal: AbortSignal.timeout(10_000) });
+      const res = await fetch(`${api}?since=${since}`, { headers: auth, signal: AbortSignal.timeout(10_000) });
       if (res.status === 404) { console.error(c.red("Endpoint expired or was deleted. Stopping.")); process.exit(1); }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const { requests } = await res.json();
@@ -140,7 +150,10 @@ async function create(args) {
   const res = await fetch(`${server}/api/endpoints`, { method: "POST" });
   const data = await res.json();
   if (!res.ok) { console.error(c.red(data.error || `HTTP ${res.status}`)); process.exit(1); }
-  console.log(`Endpoint: ${c.bold(`${server}/h/${data.id}`)}\nInspect:  ${server}/i/${data.id}\nForward:  webhook-inspector listen ${data.id} --to http://localhost:3000`);
+  const link = `${server}/i/${data.id}#k=${data.secret}`;
+  console.log(`Capture URL:  ${c.bold(`${server}/h/${data.id}`)}  ${c.dim("(give this to Stripe, GitHub…)")}
+Private link: ${link}  ${c.dim("(contains your key, keep it to yourself)")}
+Forward:      webhook-inspector listen '${link}' --to http://localhost:3000`);
 }
 
 const args = parseArgs(process.argv.slice(2));

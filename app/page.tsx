@@ -14,7 +14,7 @@ export default function Home() {
       <CreateButton />
       <pre className="snippet">
         <span className="dim"># forward live webhooks to your dev server</span>
-        {"\n"}npx @simplyzee/webhook-inspector listen &lt;endpoint&gt; --to http://localhost:3000
+        {"\n"}npx @simplyzee/webhook-inspector listen &apos;&lt;private-link&gt;&apos; --to http://localhost:3000
       </pre>
       <ul className="features">
         <li>
@@ -28,7 +28,8 @@ export default function Home() {
           <strong>Custom responses.</strong> Pick the status, body and delay to test retries and timeouts.
         </li>
         <li>
-          <strong>Burn it.</strong> Endpoints expire after 24h of quiet, or delete them in one click.
+          <strong>Private by default.</strong> The capture URL can only receive. Viewing needs a key that lives in
+          your private link&apos;s # fragment and never reaches server logs. Endpoints expire after 24h of quiet.
         </li>
       </ul>
       <footer>

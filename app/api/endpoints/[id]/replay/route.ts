@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorize } from "@/lib/auth";
 import { decodeBody } from "@/lib/body";
-import { isValidId } from "@/lib/ids";
 import { replayHeaders } from "@/lib/replay";
 import { assertPublicUrl } from "@/lib/ssrf";
 import { getStore } from "@/lib/store";
@@ -13,7 +13,8 @@ type Ctx = { params: Promise<{ id: string }> };
 /** Replay a captured request to a public URL from the server. */
 export async function POST(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
-  if (!isValidId(id)) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const ep = await authorize(req, id);
+  if (ep instanceof NextResponse) return ep;
 
   const { requestId, target } = ((await req.json().catch(() => ({}))) ?? {}) as { requestId?: string; target?: string };
   if (!requestId || !target) return NextResponse.json({ error: "requestId and target are required" }, { status: 400 });

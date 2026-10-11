@@ -28,6 +28,7 @@ pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
 .accent { color: var(--accent); }
 .dim { color: var(--dim); }
 .pad { padding: 24px; }
+.small { font-size: 12px; margin: 0; }
 .error { color: var(--danger); }
 .warn { color: var(--warn); margin: 0 0 12px; }
 
